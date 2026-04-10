@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EonGYM — Panel de Gestión</title>
+  <meta name="description" content="Panel de administración del gimnasio EonGYM. Gestiona clientes, pagos, asistencia y métricas en tiempo real." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.7/chart.umd.min.js"></script>
+  <style>
+    /* ═══════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════ */
+    :root {
+      --bg: #0a0a0a;
+      --card: #181818;
+      --card-hover: #1e1e1e;
+      --accent: #c8536a;
+      --accent-light: rgba(200, 83, 106, .15);
+      --accent-glow: rgba(200, 83, 106, .35);
+      --text: #d8d8d8;
+      --text-muted: #888;
+      --border: #2a2a2a;
+      --green: #4caf50;
+      --yellow: #f5c542;
+      --gray-badge: #666;
+      --sidebar-w: 220px;
+      --topbar-h: 60px;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --transition: .25s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ═══════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════ */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Barlow', sans-serif;
+      font-weight: 400;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    h1,h2,h3,h4,h5,h6 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    input, select { font-family: inherit; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+    /* ═══════════════════════════════════════
+       SIDEBAR
+    ═══════════════════════════════════════ */
+    .sidebar {
+      position: fixed; top: 0; left: 0;
+      width: var(--sidebar-w); height: 100vh;
+      background: #111; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      z-index: 100;
+      transition: transform var(--transition);
+    }
+    .sidebar-logo {
+      padding: 28px 22px 6px;
+      text-align: left;
+    }
+    .sidebar-logo h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900; font-size: 1.65rem; letter-spacing: 1px;
+    }
+    .sidebar-logo h2 .eon { color: #fff; }
+    .sidebar-logo h2 .gym { color: var(--accent); }
+    .sidebar-logo p {
+      font-size: .7rem; color: var(--text-muted);
+      letter-spacing: 3px; text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .sidebar-nav { flex: 1; padding: 30px 0 0; display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-nav a {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 22px; font-size: .92rem; font-weight: 500;
+      color: var(--text-muted); border-left: 3px solid transparent;
+      transition: all var(--transition); position: relative;
+    }
+    .sidebar-nav a .nav-icon { font-size: 1.15rem; width: 22px; text-align: center; }
+    .sidebar-nav a:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .sidebar-nav a.active {
+      color: #fff; background: var(--accent-light);
+      border-left-color: var(--accent);
+    }
+
+    .sidebar-footer {
+      padding: 18px 22px; border-top: 1px solid var(--border);
+      font-size: .75rem; color: var(--text-muted);
+    }
+
+    /* overlay for mobile */
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); z-index: 99;
+    }
+    .sidebar-overlay.show { display: block; }
+
+    /* ═══════════════════════════════════════
+       TOPBAR
+    ═══════════════════════════════════════ */
+    .topbar {
+      position: sticky; top: 0;
+      margin-left: var(--sidebar-w);
+      height: var(--topbar-h);
+      background: rgba(10,10,10,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; z-index: 50;
+    }
+    .topbar h1 {
+      font-size: 1.25rem; font-weight: 700; letter-spacing: .5px;
+    }
+    .topbar-actions { display: flex; gap: 12px; align-items: center; }
+
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      padding: 9px 20px; border-radius: var(--radius-sm);
+      font-weight: 600; font-size: .85rem;
+      transition: all var(--transition);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary:hover { background: #b0475c; transform: translateY(-1px); }
+
+    .hamburger {
+      display: none; font-size: 1.5rem;
+      padding: 6px; color: var(--text);
+    }
+
+    /* ═══════════════════════════════════════
+       MAIN CONTENT
+    ═══════════════════════════════════════ */
+    .main { margin-left: var(--sidebar-w); padding: 28px 32px 48px; }
+
+    /* sections */
+    .section { display: none; }
+    .section.active {
+      display: block;
+      animation: fadeUp .35s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ═══════════════════════════════════════
+       KPI CARDS
+    ═══════════════════════════════════════ */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px; margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius); padding: 20px 22px;
+      transition: background var(--transition);
+    }
+    .kpi-card:hover { background: var(--card-hover); }
+    .kpi-label { font-size: .78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .kpi-value { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 2rem; color: #fff; }
+    .kpi-sub { font-size: .78rem; margin-top: 6px; }
+    .kpi-sub.up { color: var(--green); }
+    .kpi-sub.warn { color: var(--yellow); }
+
+    /* ═══════════════════════════════════════
+       DASHBOARD GRID
+    ═══════════════════════════════════════ */
+    .dash-grid {
+      display: grid; grid-template-columns: 1.6fr 1fr;
+      gap: 18px;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+    }
+    .card-title {
+      font-size: 1rem; font-weight: 700; margin-bottom: 16px;
+      letter-spacing: .3px;
+    }
+    .chart-container { position: relative; height: 260px; width: 100%; }
+
+    /* activity feed */
+    .activity-list { list-style: none; }
+    .activity-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      margin-top: 5px; flex-shrink: 0;
+    }
+    .dot-green  { background: var(--green); box-shadow: 0 0 6px rgba(76,175,80,.5); }
+    .dot-pink   { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+    .dot-yellow { background: var(--yellow); box-shadow: 0 0 6px rgba(245,197,66,.4); }
+    .activity-text { font-size: .85rem; color: var(--text); line-height: 1.4; }
+    .activity-time { font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ═══════════════════════════════════════
+       TABLES
+    ═══════════════════════════════════════ */
+    .table-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+    }
+    .search-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 9px 14px;
+      color: var(--text); font-size: .88rem; width: 280px;
+      transition: border-color var(--transition);
+      outline: none;
+    }
+    .search-box::placeholder { color: var(--text-muted); }
+    .search-box:focus { border-color: var(--accent); }
+
+    .table-wrap {
+      overflow-x: auto; border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: .88rem;
+    }
+    thead { background: #141414; }
+    th {
+      text-align: left; padding: 13px 16px;
+      font-weight: 600; font-size: .76rem;
+      text-transform: uppercase; letter-spacing: .8px;
+      color: var(--text-muted); border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 13px 16px; border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    tr:last-child td { border-bottom: none; }
+
+    /* avatar */
+    .avatar-cell { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--accent-light); color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .75rem; flex-shrink: 0;
+      font-family: 'Barlow Condensed', sans-serif;
+    }
+    .client-name { font-weight: 500; color: #fff; }
+
+    /* badges */
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: .72rem; font-weight: 600; letter-spacing: .3px;
+    }
+    .badge-green  { background: rgba(76,175,80,.15); color: #66bb6a; }
+    .badge-yellow { background: rgba(245,197,66,.15); color: #f5c542; }
+    .badge-gray   { background: rgba(150,150,150,.15); color: #999; }
+    .badge-pink   { background: rgba(200,83,106,.15); color: var(--accent); }
+
+    /* action buttons */
+    .btn-action {
+      padding: 5px 12px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); font-size: .78rem;
+      font-weight: 500; transition: all var(--transition);
+      margin-right: 4px;
+    }
+    .btn-action:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ═══════════════════════════════════════
+       MODAL
+    ═══════════════════════════════════════ */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 30px 32px;
+      width: 420px; max-width: 92vw;
+      animation: fadeUp .25s ease both;
+    }
+    .modal h3 {
+      font-size: 1.2rem; margin-bottom: 22px;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: .78rem; font-weight: 500;
+      color: var(--text-muted); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .form-group input,
+    .form-group select {
+      width: 100%; padding: 10px 14px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text);
+      font-size: .9rem; outline: none;
+      transition: border-color var(--transition);
+    }
+    .form-group input:focus,
+    .form-group select:focus { border-color: var(--accent); }
+
+    .modal-actions {
+      display: flex; justify-content: flex-end; gap: 10px;
+      margin-top: 24px;
+    }
+    .btn-ghost {
+      padding: 9px 20px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); font-weight: 500;
+      font-size: .85rem; transition: all var(--transition);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ═══════════════════════════════════════
+       ATTENDANCE ENTRY ANIMATION
+    ═══════════════════════════════════════ */
+    @keyframes rowFadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .row-new { animation: rowFadeUp .4s ease both; }
+
+    /* ═══════════════════════════════════════
+       RESPONSIVE
+    ═══════════════════════════════════════ */
+    @media (max-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .dash-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .topbar { margin-left: 0; padding: 0 18px; }
+      .main { margin-left: 0; padding: 18px 14px 40px; }
+      .hamburger { display: block; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .search-box { width: 100%; }
+      .table-toolbar { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <h2><span class="eon">Eon</span><span class="gym">GYM</span></h2>
+      <p>Fuerza y disciplina</p>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <a href="#" class="active" data-section="dashboard">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <a href="#" data-section="clientes">
+        <span class="nav-icon">👤</span> Clientes
+      </a>
+      <a href="#" data-section="pagos">
+        <span class="nav-icon">💳</span> Pagos
+      </a>
+      <a href="#" data-section="asistencia">
+        <span class="nav-icon">🕐</span> Asistencia
+      </a>
+    </nav>
+    <div class="sidebar-footer">Admin EonGYM</div>
+  </aside>
+
+  <!-- ══════════ TOPBAR ══════════ -->
+  <header class="topbar" id="topbar">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menú">☰</button>
+      <h1 id="topbarTitle">Dashboard</h1>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-primary" id="btnNuevoCliente">+ Nuevo Cliente</button>
+    </div>
+  </header>
+
+  <!-- ══════════ MAIN CONTENT ══════════ -->
+  <main class="main">
+
+    <!-- ─── DASHBOARD ─── -->
+    <section class="section active" id="sec-dashboard">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Clientes Activos</div>
+          <div class="kpi-value">142</div>
+          <div class="kpi-sub up">↑ 8 este mes</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ingresos del Mes</div>
+          <div class="kpi-value">$4.8M</div>
+          <div class="kpi-sub up">↑ 12%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Pagos Pendientes</div>
+          <div class="kpi-value">17</div>
+          <div class="kpi-sub warn">⚠ 3 vencidos</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Asistencia Hoy</div>
+          <div class="kpi-value">38</div>
+          <div class="kpi-sub up">↑ vs ayer 31</div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <!-- Chart -->
+        <div class="card">
+          <div class="card-title">Asistencia Semanal</div>
+          <div class="chart-container"><canvas id="weeklyChart"></canvas></div>
+        </div>
+        <!-- Activity Feed -->
+        <div class="card">
+          <div class="card-title">Actividad Reciente</div>
+          <ul class="activity-list">
+            <li class="activity-item">
+              <span class="activity-dot dot-green"></span>
+              <div>
+                <div class="activity-text">Carlos Méndez registró entrada</div>
+                <div class="activity-time">Hace 5 min</div>
+              </div>
+            </li>
+            <li class="activity-item">
+              <span class="activity-dot dot-pink"></span>
+              <div>
+                <div class="activity-text">Nuevo cliente: Laura Ríos — Plan Trimestral</div>
+                <div class="activity-time">Hace 22 min</div>
+              </div>
+            </li>
+            <li class="activity-item">
+              <span class="activity-dot dot-yellow"></span>
+              <div>
+                <div class="activity-text">Pago pendiente de Miguel Torres vence mañana</div>
+                <div class="activity-time">Hace 1 h</div>
+              </div>
+            </li>
+            <li class="activity-item">
+              <span class="activity-dot dot-green"></span>
+              <div>
+                <div class="activity-text">Sofía Herrera registró entrada</div>
+                <div class="activity-time">Hace 1 h</div>
+              </div>
+            </li>
+            <li class="activity-item">
+              <span class="activity-dot dot-pink"></span>
+              <div>
+                <div class="activity-text">Nuevo cliente: Andrés Gómez — Plan Mensual</div>
+                <div class="activity-time">Hace 3 h</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── CLIENTES ─── -->
+    <section class="section" id="sec-clientes">
+      <div class="table-toolbar">
+        <input type="text" class="search-box" id="searchClientes" placeholder="Buscar cliente…" />
+      </div>
+      <div class="table-wrap">
+        <table id="tablaClientes">
+          <thead>
+            <tr>
+              <th>Cliente</th><th>Teléfono</th><th>Plan</th><th>Estado</th><th>Vencimiento</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyClientes"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── PAGOS ─── -->
+    <section class="section" id="sec-pagos">
+      <div class="table-toolbar">
+        <input type="text" class="search-box" id="searchPagos" placeholder="Buscar pago…" />
+      </div>
+      <div class="table-wrap">
+        <table id="tablaPagos">
+          <thead>
+            <tr>
+              <th>#</th><th>Cliente</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Estado</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyPagos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── ASISTENCIA ─── -->
+    <section class="section" id="sec-asistencia">
+      <div class="table-toolbar">
+        <input type="text" class="search-box" id="searchAsistencia" placeholder="Buscar asistencia…" />
+        <button class="btn-primary" id="btnRegistrarEntrada">+ Registrar Entrada</button>
+      </div>
+      <div class="table-wrap">
+        <table id="tablaAsistencia">
+          <thead>
+            <tr>
+              <th>Cliente</th><th>Entrada</th><th>Salida</th><th>Duración</th><th>Fecha</th><th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyAsistencia"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- ══════════ MODAL — NUEVO CLIENTE ══════════ -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modalNuevoCliente">
+      <h3>Nuevo Cliente</h3>
+      <div class="form-group">
+        <label for="ncNombre">Nombre completo</label>
+        <input type="text" id="ncNombre" placeholder="Ej: María López" />
+      </div>
+      <div class="form-group">
+        <label for="ncTelefono">Teléfono</label>
+        <input type="tel" id="ncTelefono" placeholder="300 123 4567" />
+      </div>
+      <div class="form-group">
+        <label for="ncPlan">Plan</label>
+        <select id="ncPlan">
+          <option value="Mensual $120k">Mensual — $120.000</option>
+          <option value="Trimestral $320k">Trimestral — $320.000</option>
+          <option value="Semestral $580k">Semestral — $580.000</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="ncFecha">Fecha de inicio</label>
+        <input type="date" id="ncFecha" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="btnCancelar">Cancelar</button>
+        <button class="btn-primary" id="btnGuardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       JAVASCRIPT
+  ══════════════════════════════════════════════ -->
+  <script>
+    /* ──────────────────────────────────────
+       DATA
+    ────────────────────────────────────── */
+    const clientesData = [
+      { nombre:'Carlos Méndez',   tel:'301 234 5678', plan:'Mensual $120k',    estado:'Activo',    venc:'2026-05-01' },
+      { nombre:'Laura Ríos',      tel:'310 987 6543', plan:'Trimestral $320k', estado:'Activo',    venc:'2026-07-15' },
+      { nombre:'Miguel Torres',   tel:'315 111 2233', plan:'Mensual $120k',    estado:'Pendiente', venc:'2026-04-12' },
+      { nombre:'Sofía Herrera',   tel:'320 444 5566', plan:'Semestral $580k',  estado:'Activo',    venc:'2026-10-20' },
+      { nombre:'Andrés Gómez',    tel:'300 777 8899', plan:'Mensual $120k',    estado:'Activo',    venc:'2026-05-08' },
+      { nombre:'Valentina Duque', tel:'318 333 4455', plan:'Trimestral $320k', estado:'Inactivo',  venc:'2026-03-01' },
+      { nombre:'Diego Ramírez',   tel:'305 222 6677', plan:'Semestral $580k',  estado:'Activo',    venc:'2026-11-30' },
+      { nombre:'Camila Vargas',   tel:'312 555 9900', plan:'Mensual $120k',    estado:'Pendiente', venc:'2026-04-15' },
+    ];
+
+    const pagosData = [
+      { id:'#0041', cliente:'Carlos Méndez',   concepto:'Mensualidad Abril',   monto:'$120.000', fecha:'2026-04-01', estado:'Pagado'    },
+      { id:'#0040', cliente:'Laura Ríos',      concepto:'Trimestre Abr-Jun',   monto:'$320.000', fecha:'2026-04-01', estado:'Pagado'    },
+      { id:'#0039', cliente:'Miguel Torres',   concepto:'Mensualidad Abril',   monto:'$120.000', fecha:'2026-04-05', estado:'Pendiente' },
+      { id:'#0038', cliente:'Sofía Herrera',   concepto:'Semestre Abr-Sep',    monto:'$580.000', fecha:'2026-03-28', estado:'Pagado'    },
+      { id:'#0037', cliente:'Andrés Gómez',    concepto:'Mensualidad Abril',   monto:'$120.000', fecha:'2026-04-02', estado:'Pagado'    },
+      { id:'#0036', cliente:'Valentina Duque', concepto:'Trimestre Ene-Mar',   monto:'$320.000', fecha:'2026-01-05', estado:'Vencido'   },
+      { id:'#0035', cliente:'Diego Ramírez',   concepto:'Semestre Ene-Jun',    monto:'$580.000', fecha:'2026-01-10', estado:'Pagado'    },
+      { id:'#0034', cliente:'Camila Vargas',   concepto:'Mensualidad Abril',   monto:'$120.000', fecha:'2026-04-08', estado:'Pendiente' },
+    ];
+
+    const hoy = new Date();
+    const fechaHoy = hoy.toISOString().split('T')[0];
+
+    const asistenciaData = [
+      { nombre:'Carlos Méndez',  entrada:'07:12', salida:'08:45', duracion:'1h 33m', fecha: fechaHoy, estado:'Salió'  },
+      { nombre:'Sofía Herrera',  entrada:'08:00', salida:'—',     duracion:'—',      fecha: fechaHoy, estado:'En Gym' },
+      { nombre:'Andrés Gómez',   entrada:'06:30', salida:'07:50', duracion:'1h 20m', fecha: fechaHoy, estado:'Salió'  },
+      { nombre:'Diego Ramírez',  entrada:'09:15', salida:'—',     duracion:'—',      fecha: fechaHoy, estado:'En Gym' },
+      { nombre:'Laura Ríos',     entrada:'10:02', salida:'11:30', duracion:'1h 28m', fecha: fechaHoy, estado:'Salió'  },
+      { nombre:'Camila Vargas',  entrada:'07:45', salida:'09:10', duracion:'1h 25m', fecha: fechaHoy, estado:'Salió'  },
+    ];
+
+    /* ──────────────────────────────────────
+       HELPERS
+    ────────────────────────────────────── */
+    const initials = n => n.split(' ').map(p => p[0]).join('').toUpperCase().slice(0,2);
+
+    function badgeClass(estado) {
+      const m = { Activo:'green', Pagado:'green', 'En Gym':'green',
+                  Pendiente:'yellow', Inactivo:'gray', Salió:'gray', Vencido:'pink' };
+      return 'badge-' + (m[estado] || 'gray');
+    }
+
+    function formatFecha(f) {
+      if (!f) return '—';
+      const d = new Date(f + 'T00:00:00');
+      return d.toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+    }
+
+    /* ──────────────────────────────────────
+       RENDER TABLES
+    ────────────────────────────────────── */
+    function renderClientes(filter = '') {
+      const tb = document.getElementById('tbodyClientes');
+      const fl = filter.toLowerCase();
+      tb.innerHTML = clientesData
+        .filter(c => !fl || c.nombre.toLowerCase().includes(fl) || c.plan.toLowerCase().includes(fl) || c.estado.toLowerCase().includes(fl))
+        .map(c => `
+          <tr>
+            <td><div class="avatar-cell"><div class="avatar">${initials(c.nombre)}</div><span class="client-name">${c.nombre}</span></div></td>
+            <td>${c.tel}</td>
+            <td>${c.plan}</td>
+            <td><span class="badge ${badgeClass(c.estado)}">${c.estado}</span></td>
+            <td>${formatFecha(c.venc)}</td>
+            <td><button class="btn-action">Ver</button><button class="btn-action">Editar</button></td>
+          </tr>`).join('');
+    }
+
+    function renderPagos(filter = '') {
+      const tb = document.getElementById('tbodyPagos');
+      const fl = filter.toLowerCase();
+      tb.innerHTML = pagosData
+        .filter(p => !fl || p.cliente.toLowerCase().includes(fl) || p.id.includes(fl) || p.estado.toLowerCase().includes(fl))
+        .map(p => {
+          const btn = p.estado === 'Pagado'
+            ? '<button class="btn-action">Recibo</button>'
+            : '<button class="btn-action">Cobrar</button>';
+          return `
+          <tr>
+            <td>${p.id}</td>
+            <td>${p.cliente}</td>
+            <td>${p.concepto}</td>
+            <td>${p.monto}</td>
+            <td>${formatFecha(p.fecha)}</td>
+            <td><span class="badge ${badgeClass(p.estado)}">${p.estado}</span></td>
+            <td>${btn}</td>
+          </tr>`;
+        }).join('');
+    }
+
+    function renderAsistencia(filter = '') {
+      const tb = document.getElementById('tbodyAsistencia');
+      const fl = filter.toLowerCase();
+      tb.innerHTML = asistenciaData
+        .filter(a => !fl || a.nombre.toLowerCase().includes(fl) || a.estado.toLowerCase().includes(fl))
+        .map((a, i) => `
+          <tr class="${i === 0 && a._new ? 'row-new' : ''}">
+            <td><div class="avatar-cell"><div class="avatar">${initials(a.nombre)}</div><span class="client-name">${a.nombre}</span></div></td>
+            <td>${a.entrada}</td>
+            <td>${a.salida}</td>
+            <td>${a.duracion}</td>
+            <td>${formatFecha(a.fecha)}</td>
+            <td><span class="badge ${badgeClass(a.estado)}">${a.estado}</span></td>
+          </tr>`).join('');
+    }
+
+    // Initial render
+    renderClientes();
+    renderPagos();
+    renderAsistencia();
+
+    /* ──────────────────────────────────────
+       SEARCH (real-time)
+    ────────────────────────────────────── */
+    document.getElementById('searchClientes').addEventListener('input', e => renderClientes(e.target.value));
+    document.getElementById('searchPagos').addEventListener('input', e => renderPagos(e.target.value));
+    document.getElementById('searchAsistencia').addEventListener('input', e => renderAsistencia(e.target.value));
+
+    /* ──────────────────────────────────────
+       NAVIGATION
+    ────────────────────────────────────── */
+    const sectionTitles = { dashboard:'Dashboard', clientes:'Clientes', pagos:'Pagos', asistencia:'Asistencia' };
+    const navLinks = document.querySelectorAll('#sidebarNav a');
+    const sections = document.querySelectorAll('.section');
+    const topTitle = document.getElementById('topbarTitle');
+
+    function navigateTo(key) {
+      navLinks.forEach(l => l.classList.toggle('active', l.dataset.section === key));
+      sections.forEach(s => {
+        s.classList.remove('active');
+        if (s.id === 'sec-' + key) {
+          // force reflow for re-animation
+          void s.offsetWidth;
+          s.classList.add('active');
+        }
+      });
+      topTitle.textContent = sectionTitles[key] || key;
+      // close mobile sidebar
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('show');
+    }
+
+    navLinks.forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        navigateTo(link.dataset.section);
+      });
+    });
+
+    /* ──────────────────────────────────────
+       HAMBURGER / MOBILE
+    ────────────────────────────────────── */
+    document.getElementById('hamburgerBtn').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('show');
+    });
+    document.getElementById('sidebarOverlay').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('show');
+    });
+
+    /* ──────────────────────────────────────
+       MODAL — NUEVO CLIENTE
+    ────────────────────────────────────── */
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalBox = document.getElementById('modalNuevoCliente');
+
+    function openModal() {
+      modalOverlay.classList.add('show');
+      document.getElementById('ncFecha').value = fechaHoy;
+    }
+    function closeModal() {
+      modalOverlay.classList.remove('show');
+      document.getElementById('ncNombre').value = '';
+      document.getElementById('ncTelefono').value = '';
+      document.getElementById('ncPlan').selectedIndex = 0;
+    }
+
+    document.getElementById('btnNuevoCliente').addEventListener('click', openModal);
+    document.getElementById('btnCancelar').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+
+    document.getElementById('btnGuardar').addEventListener('click', () => {
+      const nombre = document.getElementById('ncNombre').value.trim();
+      const tel    = document.getElementById('ncTelefono').value.trim();
+      const plan   = document.getElementById('ncPlan').value;
+      const fecha  = document.getElementById('ncFecha').value;
+      if (!nombre) { document.getElementById('ncNombre').focus(); return; }
+
+      // Add to data & re-render
+      clientesData.unshift({ nombre, tel: tel || '—', plan, estado:'Activo', venc: calcVenc(plan, fecha) });
+      renderClientes();
+      closeModal();
+      navigateTo('clientes');
+    });
+
+    function calcVenc(plan, start) {
+      const d = new Date(start + 'T00:00:00');
+      if (plan.includes('Semestral')) d.setMonth(d.getMonth() + 6);
+      else if (plan.includes('Trimestral')) d.setMonth(d.getMonth() + 3);
+      else d.setMonth(d.getMonth() + 1);
+      return d.toISOString().split('T')[0];
+    }
+
+    /* ──────────────────────────────────────
+       REGISTRAR ENTRADA
+    ────────────────────────────────────── */
+    const randomClients = ['Felipe Castro','Ana Morales','Julián Ortiz','Daniela Peña','Sebastián Cruz','Isabella Niño'];
+    let entradaIdx = 0;
+
+    document.getElementById('btnRegistrarEntrada').addEventListener('click', () => {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2,'0');
+      const m = String(now.getMinutes()).padStart(2,'0');
+      const nombre = randomClients[entradaIdx % randomClients.length];
+      entradaIdx++;
+      asistenciaData.unshift({ nombre, entrada: h+':'+m, salida:'—', duracion:'—', fecha: fechaHoy, estado:'En Gym', _new: true });
+      renderAsistencia(document.getElementById('searchAsistencia').value);
+      // remove _new flag after animation
+      setTimeout(() => { asistenciaData[0]._new = false; }, 500);
+    });
+
+    /* ──────────────────────────────────────
+       CHART.JS — ASISTENCIA SEMANAL
+    ────────────────────────────────────── */
+    function buildChart() {
+      const ctx = document.getElementById('weeklyChart').getContext('2d');
+
+      // gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, 220);
+      grad.addColorStop(0, 'rgba(200,83,106,.85)');
+      grad.addColorStop(1, 'rgba(200,83,106,.15)');
+
+      const days = ['Lun','Mar','Mié','Jue','Vie','Sáb'];
+      const values = [41, 33, 45, 35, 38, 28];
+      const avg = values.reduce((a,b)=>a+b,0) / values.length;
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: days,
+          datasets: [
+            {
+              label: 'Asistencia',
+              data: values,
+              backgroundColor: grad,
+              borderRadius: 6,
+              borderSkipped: false,
+              barPercentage: .55,
+              categoryPercentage: .7,
+              order: 2,
+            },
+            {
+              label: 'Promedio',
+              data: Array(6).fill(avg),
+              type: 'line',
+              borderColor: 'rgba(200,83,106,.5)',
+              borderDash: [6,4],
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              order: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#111',
+              titleColor: '#c8536a',
+              bodyColor: '#d8d8d8',
+              borderColor: '#c8536a',
+              borderWidth: 1,
+              cornerRadius: 6,
+              padding: 10,
+              displayColors: false,
+              callbacks: {
+                title: ctx => ctx[0].label,
+                label: ctx => ctx.dataset.label === 'Promedio'
+                  ? 'Promedio: ' + Math.round(avg)
+                  : 'Asistencia: ' + ctx.parsed.y,
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              border: { display: false },
+              ticks: { color: '#888', font: { family: "'Barlow', sans-serif", size: 12 } },
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,.04)', drawBorder: false },
+              border: { display: false },
+              ticks: { color: '#666', font: { family: "'Barlow', sans-serif", size: 11 }, stepSize: 10 },
+              beginAtZero: true,
+            }
+          }
+        }
+      });
+    }
+
+    // Build chart once Chart.js is ready
+    function initChart() {
+      if (typeof Chart !== 'undefined') {
+        buildChart();
+      } else {
+        setTimeout(initChart, 200);
+      }
+    }
+    if (document.readyState === 'complete') {
+      initChart();
+    } else {
+      window.addEventListener('load', initChart);
+    }
+  </script>
+</body>
+</html>
